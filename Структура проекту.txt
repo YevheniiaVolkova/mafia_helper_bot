@@ -1,0 +1,37 @@
+mafia_helper_bot/
++-- main.py
++-- config.py
++-- database/
+¦   +-- __init__.py
+¦   +-- models.py
+¦   +-- db.py
++-- handlers/
+¦   +-- __init__.py
+¦   +-- profile.py
+¦   +-- events.py
+¦   +-- admin.py
+¦   +-- roles.py         # новий — для управління правами доступу
+¦   +-- settings.py      # для налаштувань груп і бота
+¦   +-- game_stats.py    # для перемог/поразок
++-- keyboards/
+¦   +-- __init__.py
+¦   +-- profile_kb.py
+¦   +-- admin_kb.py
+¦   +-- event_kb.py
+¦   +-- role_kb.py
+¦   +-- menu_kb.py
++-- states/
+¦   +-- __init__.py
+¦   +-- event_states.py
+¦   +-- profile_states.py
+¦   +-- admin_states.py
++-- utils/
+¦   +-- logger.py
+¦   +-- access.py
++-- static/
+¦   +-- mafia_logo.jpg
+¦   L-- sounds/
+¦       L-- intro.mp3
++-- data/
+¦   +-- settings.json
+L-- requirements.txt
