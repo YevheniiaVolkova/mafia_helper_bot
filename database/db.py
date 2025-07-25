@@ -1,17 +1,16 @@
 import sqlite3
 from config import config
 
-
+# --- Підключення до БД ---
 def get_connection():
     return sqlite3.connect(config.DATABASE_PATH)
-
 
 def get_db():
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     return conn
 
-
+# --- Ініціалізація БД ---
 def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -48,9 +47,7 @@ def init_db():
 
         conn.commit()
 
-
-# EVENTS CRUD
-
+# --- Івенти (CRUD) ---
 def get_all_events():
     conn = get_db()
     cursor = conn.cursor()
@@ -70,20 +67,14 @@ def get_event(ev_id):
 def add_event(ev_id, title, description):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO events (id, name, description) VALUES (?, ?, ?)",
-        (ev_id, title, description)
-    )
+    cursor.execute("INSERT INTO events (id, name, description) VALUES (?, ?, ?)", (ev_id, title, description))
     conn.commit()
     conn.close()
 
 def update_event(ev_id, title, description):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE events SET name = ?, description = ? WHERE id = ?",
-        (title, description, ev_id)
-    )
+    cursor.execute("UPDATE events SET name = ?, description = ? WHERE id = ?", (title, description, ev_id))
     conn.commit()
     conn.close()
 
@@ -94,9 +85,32 @@ def delete_event(ev_id):
     conn.commit()
     conn.close()
 
+# --- Користувачі ---
+def get_user_by_id(user_id: int):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
-# USERS MANAGEMENT
+def get_or_create_user(user_id: int, username: str = ""):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute(
+            "INSERT INTO users (user_id, username) VALUES (?, ?)",
+            (user_id, username)
+        )
+        conn.commit()
+    elif username:
+        cursor.execute("UPDATE users SET username = ? WHERE user_id = ?", (username, user_id))
+        conn.commit()
+    conn.close()
 
+# --- Бан/Анбан ---
 def ban_user(user_id):
     conn = get_db()
     cursor = conn.cursor()
@@ -119,19 +133,14 @@ def is_banned(user_id):
     conn.close()
     return bool(row["is_banned"]) if row else False
 
-
-# USER STATS AND BALANCE
-
+# --- Баланс і статистика ---
 def get_user_stats(user_id):
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT balance, wins, losses FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     conn.close()
-    if row:
-        return dict(row)
-    else:
-        return {"balance": 0, "wins": 0, "losses": 0}
+    return dict(row) if row else {"balance": 0, "wins": 0, "losses": 0}
 
 def update_user_balance(user_id, amount):
     conn = get_db()
@@ -160,9 +169,7 @@ def update_user_stats(user_id, wins=0, losses=0):
     conn.commit()
     conn.close()
 
-
-# SETTINGS
-
+# --- Налаштування ---
 def set_setting(key, value):
     conn = get_db()
     cursor = conn.cursor()

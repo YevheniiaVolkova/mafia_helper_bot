@@ -1,12 +1,17 @@
+from dataclasses import dataclass
 import os
 from dotenv import load_dotenv
 
-# Завантажує змінні середовища з .env файлу
 load_dotenv()
 
+@dataclass
 class Config:
-    BOT_TOKEN = os.getenv("BOT_TOKEN")
-    DATABASE_PATH = os.getenv("DATABASE_PATH", "mafia_helper_bot.db")
-    BOT_USERNAME = os.getenv("BOT_USERNAME", "your_bot_username")  # Без @
+    BOT_TOKEN: str
+    BOT_USERNAME: str
+    DATABASE_PATH: str
 
-config = Config()
+config = Config(
+    BOT_TOKEN=os.getenv("BOT_TOKEN"),
+    BOT_USERNAME=os.getenv("BOT_USERNAME", "BabidzhonBot"),  # без @
+    DATABASE_PATH=os.getenv("DATABASE_PATH", "database.db")  # за замовчуванням — database.db
+)
