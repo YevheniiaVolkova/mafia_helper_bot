@@ -1,60 +1,56 @@
-from aiogram import Router, types, Bot
+import logging
+import re
+from aiogram import Router
 from aiogram.types import Message
-from aiogram.exceptions import TelegramForbiddenError
 
-from database.users import update_game_result_by_id
+from database.db import (
+    update_user_balance,
+    update_user_stats,
+    get_user_by_id,
+    update_role_stats  # <--- додали!
+)
+from database.active_players import get_all_active_players
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 @router.message()
-async def handle_game_end_message(message: Message, bot: Bot):
-    if not message.text or not message.text.startswith("Гру закінчено!"):
+async def handle_game_end(message: Message):
+    if not message.text or "Переможці:" not in message.text:
         return
 
-    entities = message.entities or []
-    text = message.text
+    logger.info("📩 Обробка кінця гри")
 
-    winners_ids = []
-    losers_ids = []
+    lines = message.text.splitlines()
+    winners = []
 
-    # Знаходимо індекси початку секцій "Переможці:" і "Решта учасників:"
-    winners_start = text.find("Переможці:")
-    others_start = text.find("Решта учасників:")
+    for line in lines:
+        match = re.match(r"• \[(.+?)\]\(tg://user\?id=(\d+)\)\s+—\s+@?(\w+)?", line)
+        if match:
+            role = match.group(1)
+            user_id = int(match.group(2))
+            username = match.group(3)
+            winners.append((user_id, username, role))
+            logger.info(f"🏆 Переможець: {username} ({user_id}) — роль {role}")
 
-    if winners_start == -1 or others_start == -1:
-        await message.answer("⚠️ Не вдалося знайти розділи 'Переможці' або 'Решта учасників'.")
-        return
+    # Отримати список усіх активних гравців (початок першого дня)
+    all_players = await get_all_active_players()
+    all_ids = {uid for _, uid in all_players}
 
-    # Витягуємо user_id з text_mention (згадок з користувачами)
-    for entity in entities:
-        if entity.type == "text_mention" and entity.user:
-            offset = entity.offset
-            if winners_start < offset < others_start:
-                winners_ids.append(entity.user.id)
-            elif offset > others_start:
-                losers_ids.append(entity.user.id)
+    winner_ids = {uid for uid, _, _ in winners}
+    loser_ids = all_ids - winner_ids
 
-    # Оновлюємо статистику у базі
-    for uid in winners_ids:
-        await update_game_result_by_id(uid, win=True)
-        await notify_winner(bot, uid)
+    # 1. Переможцям +10 бабідонів, +1 перемога, оновлення статистики по ролі
+    for user_id, username, role in winners:
+        update_user_balance(user_id, 10)
+        update_user_stats(user_id, wins=1)
+        await update_role_stats(user_id, role=role, won=True)
 
-    for uid in losers_ids:
-        await update_game_result_by_id(uid, win=False)
+    # 2. Програвшим +1 поразка, оновлення статистики
+    for _, user_id in all_players:
+        if user_id not in winner_ids:
+            update_user_stats(user_id, losses=1)
+            await update_role_stats(user_id, role=None, won=False)  # якщо роль невідома
 
-    await message.answer("✅ Результати гри збережено. Перемог: +1 / Поразок: +1")
-
-
-# 📨 Надіслати повідомлення переможцю в приват
-async def notify_winner(bot: Bot, user_id: int):
-    try:
-        await bot.send_message(
-            chat_id=user_id,
-            text=(
-                "🏆 Ви перемогли в грі!\n"
-                "💰 Вам нараховано +10 бабідонів.\n"
-                "📈 Ваша статистика оновлена."
-            )
-        )
-    except TelegramForbiddenError:
-        print(f"❗️ Бот заблокований користувачем {user_id}, не вдалося надіслати повідомлення.")
+    logger.info(f"✅ Гру завершено. Переможців: {len(winners)}. Програвших: {len(loser_ids)}")
+   

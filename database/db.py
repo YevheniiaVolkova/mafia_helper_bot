@@ -1,4 +1,5 @@
 import sqlite3
+import json
 from config import config
 
 # --- Підключення до БД ---
@@ -15,6 +16,7 @@ def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
 
+        # Таблиця користувачів
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
@@ -25,10 +27,13 @@ def init_db():
                 stars INTEGER DEFAULT 0,
                 daily_games INTEGER DEFAULT 0,
                 wins INTEGER DEFAULT 0,
-                losses INTEGER DEFAULT 0
+                losses INTEGER DEFAULT 0,
+                total_games INTEGER DEFAULT 0,
+                role_stats TEXT DEFAULT '{}'
             )
         ''')
 
+        # Таблиця івентів
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS events (
                 id TEXT PRIMARY KEY,
@@ -38,10 +43,19 @@ def init_db():
             )
         ''')
 
+        # Таблиця налаштувань
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT
+            )
+        ''')
+
+        # Таблиця активних гравців
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS active_players (
+                username TEXT PRIMARY KEY,
+                user_id INTEGER
             )
         ''')
 
@@ -166,6 +180,35 @@ def update_user_stats(user_id, wins=0, losses=0):
         cursor.execute("UPDATE users SET wins = ?, losses = ? WHERE user_id = ?", (new_wins, new_losses, user_id))
     else:
         cursor.execute("INSERT INTO users (user_id, wins, losses) VALUES (?, ?, ?)", (user_id, wins, losses))
+    conn.commit()
+    conn.close()
+
+async def update_role_stats(user_id: int, role: str | None, won: bool):
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT role_stats FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+
+    role_stats = {}
+    if row and row["role_stats"]:
+        try:
+            role_stats = json.loads(row["role_stats"])
+        except Exception:
+            role_stats = {}
+
+    key = role.lower().replace(" ", "_") if role else "unknown"
+
+    stats = role_stats.get(key, {"games": 0, "wins": 0})
+    stats["games"] += 1
+    if won:
+        stats["wins"] += 1
+    role_stats[key] = stats
+
+    cursor.execute(
+        "UPDATE users SET role_stats = ?, total_games = total_games + 1 WHERE user_id = ?",
+        (json.dumps(role_stats, ensure_ascii=False), user_id)
+    )
     conn.commit()
     conn.close()
 

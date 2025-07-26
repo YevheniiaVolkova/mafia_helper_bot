@@ -15,6 +15,8 @@ from .db import (
     update_user_stats,
     set_setting,
     get_setting,
+    get_or_create_user,
 )
 
 from .users import get_or_create_user
+

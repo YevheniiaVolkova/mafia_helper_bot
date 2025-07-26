@@ -1,5 +1,8 @@
 import sqlite3
 from database.db import get_connection
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 🧠 Отримати користувача за ID
 async def get_user_by_id(user_id: int) -> dict | None:
@@ -25,11 +28,14 @@ async def get_or_create_user(user_id: int, username: str = ""):
         # Оновити username, якщо він змінився і не пустий
         if username and user[1] != username:
             cursor.execute("UPDATE users SET username = ? WHERE user_id = ?", (username, user_id))
+            logger.info(f"Оновлено username для user_id={user_id} на {username}")
     else:
-        cursor.execute(
-            "INSERT INTO users (user_id, username, balance, stars, daily_games, wins, losses) VALUES (?, ?, 0, 0, 0, 0, 0)",
-            (user_id, username)
-        )
+        cursor.execute("""
+            INSERT INTO users 
+            (user_id, username, balance, stars, daily_games, wins, losses) 
+            VALUES (?, ?, 0, 0, 0, 0, 0)
+        """, (user_id, username))
+        logger.info(f"Створено нового користувача user_id={user_id} username={username}")
 
     conn.commit()
     conn.close()
@@ -42,7 +48,6 @@ async def get_all_users() -> list[dict]:
     cursor.execute("SELECT * FROM users")
     rows = cursor.fetchall()
     conn.close()
-
     return [dict(row) for row in rows]
 
 # ⭐ Отримати суму всіх зірок у чаті
@@ -94,8 +99,7 @@ async def increment_daily_games(user_id: int):
     conn.commit()
     conn.close()
 
-# ✅ Оновити перемогу (win=True): перемога + бабідони + гра
-# ❌ Оновити поразку (win=False): поразка + гра
+# 🎯 Оновити результат гри
 async def update_game_result_by_id(user_id: int, win: bool):
     conn = get_connection()
     cursor = conn.cursor()
@@ -105,11 +109,25 @@ async def update_game_result_by_id(user_id: int, win: bool):
             SET wins = wins + 1, balance = balance + 10, daily_games = daily_games + 1
             WHERE user_id = ?
         """, (user_id,))
+        logger.info(f"Оновлено перемогу для user_id={user_id}: +1 win, +10 balance, +1 daily_games")
     else:
         cursor.execute("""
             UPDATE users
             SET losses = losses + 1, daily_games = daily_games + 1
             WHERE user_id = ?
         """, (user_id,))
+        logger.info(f"Оновлено поразку для user_id={user_id}: +1 loss, +1 daily_games")
     conn.commit()
     conn.close()
+
+# Отримати користувача за username
+async def get_user_by_username(username: str) -> dict | None:
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
